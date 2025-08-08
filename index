@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>EEG Tutor – Pro v1.3 (Mobile/Desktop)</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#151923; --muted:#9aa3b2; --text:#e8ecf1; --accent:#6ee7ff; --accent2:#a78bfa; --good:#22c55e; --bad:#ef4444;
+  }
+  *{box-sizing:border-box} body{margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial; background:var(--bg); color:var(--text);}
+  header{padding:14px 16px; display:flex; align-items:center; justify-content:space-between; background:linear-gradient(180deg,#121726,#0f1115)}
+  h1{font-size:18px; margin:0; font-weight:700; letter-spacing:.3px}
+  .badge{font-size:11px; color:#cbd5e1; border:1px solid #334155; padding:2px 8px; border-radius:999px; margin-left:8px}
+  .row{display:flex; align-items:center; gap:10px}
+  .container{padding:12px; display:grid; gap:12px; max-width:1100px; margin:0 auto}
+  .card{background:var(--card); border:1px solid #1f2432; border-radius:16px; padding:12px; box-shadow:0 6px 18px rgba(0,0,0,.2)}
+  .controls{display:flex; gap:8px; flex-wrap:wrap}
+  select, button, input[type='text']{background:#0f1320; color:var(--text); border:1px solid #232a3b; border-radius:12px; padding:10px 12px; font-size:14px}
+  button{background:#0f1320; cursor:pointer}
+  button.primary{background:linear-gradient(180deg,#1b2a4a,#15223d); border-color:#2b395a}
+  button.ghost{background:transparent; border-color:#2b3346}
+  .muted{color:var(--muted); font-size:13px}
+  .grid{display:grid; gap:10px}
+  .two{grid-template-columns:1fr 1fr}
+  .hidden{display:none}
+  .pill{padding:4px 8px; border:1px solid #2a3347; border-radius:999px; font-size:12px; color:#cbd5e1}
+  .score{font-weight:700}
+  canvas{width:100%; height:300px; background:#0b0f1a; border-radius:14px; border:1px solid #1e2434; touch-action:manipulation}
+  .tabs{display:flex; gap:8px}
+  .tabs button{flex:1}
+  .progress{height:10px; background:#101525; border:1px solid #1e2434; border-radius:999px; overflow:hidden}
+  .progress>div{height:100%; background:linear-gradient(90deg,#22c55e,#84cc16); width:0%}
+  .footer{padding:10px; font-size:11px; color:#8b93a7; text-align:center}
+  .kudos{font-size:13px; padding:6px 10px; border-radius:10px}
+  .ok{background:#052e1b; border:1px solid #0b6b3f; color:#c7f9d4}
+  .no{background:#3a0a0a; border:1px solid #7f1d1d; color:#fecaca}
+  .small{font-size:11px; color:#9aa3b2}
+</style>
+</head>
+<body>
+<header>
+  <div class="row">
+    <h1>EEG Tutor</h1>
+    <span class="badge">Pro v1.3</span>
+  </div>
+  <div class="row">
+    <span class="pill">Szint <span id="lvl">1</span></span>
+    <span class="pill"><span id="xp">0</span> XP</span>
+  </div>
+</header>
+
+<div class="container">
+  <div class="card">
+    <div class="tabs">
+      <button id="tabExplore" class="primary">Explore</button>
+      <button id="tabIdentify" class="ghost">Identify</button>
+      <button id="tabQuiz" class="ghost">Quiz</button>
+    </div>
+  </div>
+
+  <div class="card" id="explore">
+    <div class="controls" style="margin-top:10px">
+      <select id="caseSel"></select>
+      <button id="toggleAns" class="ghost">Megoldás: <span id="ansLbl">be</span></button>
+      <button id="playBtn" class="ghost">⏯️ Pause</button>
+      <span class="pill">Sebesség <span id="spdLbl">1.0×</span></span>
+      <input type="range" id="speed" min="0.5" max="2" step="0.1" value="1" style="flex:1">
+    </div>
+    <div class="small" id="meta"></div>
+    <div style="margin-top:8px" class="muted" id="desc"></div>
+    <canvas id="eeg"></canvas>
+    <div class="grid two" style="margin-top:10px">
+      <div class="card">
+        <div style="font-weight:700; margin-bottom:6px">Részletes magyarázat</div>
+        <div id="explain" class="muted"></div>
+      </div>
+      <div class="card">
+        <div style="font-weight:700; margin-bottom:6px">Tippek</div>
+        <ul id="tips" class="muted" style="padding-left:18px"></ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="card hidden" id="identify">
+    <div class="controls" style="margin-top:10px">
+      <select id="difficulty">
+        <option value="beginner">Beginner</option>
+        <option value="intermediate">Közepes</option>
+        <option value="hard">Nehéz</option>
+        <option value="all">Vegyes</option>
+      </select>
+      <button id="newIdentify" class="primary">Új feladat →</button>
+    </div>
+    <div class="small" id="idfMeta" style="margin-top:6px"></div>
+    <canvas id="eeg2"></canvas>
+    <div class="controls" style="margin-top:8px">
+      <input id="guess" type="text" placeholder="Mi ez a minta? pl. LPDs, generalized spike-wave, triphasic, SIRPIDs...">
+      <button id="check">Ellenőrzés</button>
+    </div>
+    <div id="fb" class="kudos hidden" style="margin-top:8px"></div>
+  </div>
+
+  <div class="card hidden" id="quiz">
+    <div class="controls" style="margin-top:10px">
+      <select id="caseSelQ"></select>
+      <button id="resetQuiz" class="ghost">🔄 Reset</button>
+      <button id="showSolution" class="primary">Megoldás + XP</button>
+    </div>
+    <canvas id="eeg3"></canvas>
+    <div class="card" style="margin-top:10px">
+      <div style="font-weight:700; margin-bottom:6px">Pontszám</div>
+      <div class="row" style="justify-content:space-between">
+        <div>Találatok: <span id="hits" class="score">0</span> / <span id="total">0</span></div>
+        <div>Összesen: <span id="pct" class="score">0%</span></div>
+      </div>
+      <div class="progress" style="margin-top:8px"><div id="bar"></div></div>
+      <div class="small" style="margin-top:6px">Legjobb: <span id="best">0</span>%</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="font-weight:700; margin-bottom:8px">Medálok</div>
+    <ul id="medals" class="muted" style="padding-left:18px; margin:0"></ul>
+  </div>
+
+  <div class="footer">Egyfájlos app. Következő: EDF/CSV import, JSON export, több hard case (NCSE, SIRPIDs, burst-suppression), csatornaérzékeny pontozás.</div>
+</div>
+
+<script>
+/* ==== Data & Utilities ==== */
+function genChannel(N, noise=0.6, spikes=[], mag=4){
+  const arr=[];
+  for(let i=0;i<N;i++){
+    const base=Math.sin(i/8)*1.2 + Math.sin(i/25)*0.8;
+    const drift=Math.sin(i/220)*0.5;
+    let v = base + drift + (Math.random()-0.5)*noise;
+    if(spikes.includes(i)) v+=mag;
+    if(spikes.some(s=>Math.abs(i-s)<=2)){
+      const near=spikes.find(s=>Math.abs(i-s)<=2);
+      v += mag*(1-Math.abs(i-near)/2);
+    }
+    arr.push(v);
+  }
+  return arr;
+}
+const S=900;
+function makeCase(id,title,montage,desc,explain,tips,diff,label,chans,spikeIdxGen,magGen){
+  return {
+    id,title,montage,desc,explain,tips,diff,label,
+    sampleRate:S,
+    channels:chans.map((name,idx)=>{
+      const spikes=spikeIdxGen(idx);
+      return {name, data:genChannel(S,0.45,spikes,magGen(idx)), spikes};
+    })
+  };
+}
+const CASES = [
+  makeCase('gsw3','Generalizált tüskék–hullámok (~3 Hz)','10–20, referenciális (Cz)',
+    'Szinkron 3 Hz spike–lassú hullám több csatornán.',
+    'Generalizált epilepsziák klasszikus mintája. Meredek spike után lassú hullám, 2.5–3.5 Hz. Topográfiai és időzítési konzisztencia különíti el az artefaktumtól.',
+    ['Spike + slow wave párok','Széleskörű, szinkron megjelenés','Artefaktumnál nincs ilyen következetesség'],
+    'beginner','generalized spike-wave',
+    ['Fp1-F3','F3-C3','C3-P3','P3-O1','Fp2-F4','F4-C4','C4-P4','P4-O2'],
+    ()=>[160,190,220,250,280,310,340],
+    (idx)=>5-(idx%3)
+  ),
+  makeCase('lt_spikes','Bal temporális tüskék (fokális)','Bitemporális referenciális',
+    'Időszakos bal temporális spike-ok ipsilaterális dominanciával.',
+    'Legnagyobb amplitúdó T3/T5 közelében. Fokális jelleg: időben nem egyszerre minden csatornán. Meredek fel- és lefutás.',
+    ['Ipsilaterális maximum','Aszinkron megjelenés','Meredek fel/lecsapás'],
+    'intermediate','left temporal spikes',
+    ['F7-T3','T3-T5','T5-O1','F8-T4','T4-T6','T6-O2'],
+    (idx)=>(idx<3?[200,410,640]:[205,415,645]),
+    (idx)=>(idx<3?5:2)
+  ),
+  makeCase('triphasic','Triphasic hullámok','Referenciális',
+    'Lassú háromfázisú hullámok, metabolikus/toxikus enkefalopátia gyanú.',
+    'Triphasic nem epileptiform: elöl-hátul fázisváltások, gyakran frontális dominancia, periodicitás. Nem hegyes, nem szűk.',
+    ['Frontális túlsúly gyakori','Három fázis egymás után','Nem „spike+slow”'],
+    'hard','triphasic waves',
+    ['Fp1-F3','F3-C3','Fz-Cz','Fp2-F4','F4-C4'],
+    ()=>[140,300,470],
+    ()=>2
+  ),
+  makeCase('lpds','LPDs – laterális periodikus kisülések (jobb)','Referenciális',
+    'Periodikus laterális kisülések jobb féltekén.',
+    'LPDs gyakran akut fokális lézióval társulnak. Periodikus mintázat, laterális topográfia. NCSE spektrumán mérlegelendő.',
+    ['Periodicitás (1–2 s)','Laterális dominancia','Klinikai korrelátum fontos'],
+    'hard','lpds',
+    ['F8-T4','T4-T6','T6-O2','F7-T3','T3-T5'],
+    (idx)=>(idx<3?[150,300,450,600]:[]),
+    (idx)=>(idx<3?4:1)
+  ),
+  makeCase('sirpids','SIRPIDs-szerű aktivitás','Referenciális',
+    'Stimulus-indukált ritmikus/periodikus kisülések: rövid, stimulus után felbukkanó aktivitás.',
+    'Kritikusan beteg pácienseknél látható; stimulus (tapintás, szívás, hang) után megjelenő ritmikus/periodikus aktivitás. Nem azonos az ictussal, de NCSE-spektrum felé tolhat.',
+    ['Kapcsolódik stimulushoz','Ritmikus/periodikus szakaszok','Klinikai korreláció szükséges'],
+    'intermediate','sirpids',
+    ['F3-C3','C3-P3','F4-C4','C4-P4'],
+    (idx)=>[220, 400, 580],
+    ()=>3
+  ),
+  makeCase('frontal_spikes','Jobb frontális keskeny tüskék (finom)','Referenciális',
+    'Nehezen észrevehető, keskeny frontális tüskék, kevés csatornán.',
+    'Finom, nagyfrekvenciás komponenssel bíró keskeny spike-ok; gyakran EMG-artefaktummal téveszthető. Topográfia és meredekség alapján különítsd el.',
+    ['Kevés csatornán, frontális túlsúly','Meredek, szűk csúcs','EMG vs spike különbségtétel'],
+    'hard','right frontal spikes',
+    ['F4-Fz','Fz-Cz','F8-F4','F4-C4'],
+    (idx)=>(idx%2===0?[260, 520]:[]),
+    (idx)=> (idx%2===0?5:1)
+  ),
+  makeCase('normal_alpha','Normál éber EEG – occipitalis alfa','10–20',
+    '8–10 Hz alfa dominancia occipitalisan, reaktív szemnyitásra.',
+    'Normál ritmusos aktivitás; nincs hegyes spike. Fontos a szimmetria és a reaktivitás.',
+    ['Szimmetria','Reaktivitás szemnyitásra','Nincs hegyes csúcs'],
+    'beginner','normal alpha',
+    ['O1-O2','P3-O1','P4-O2','C3-P3','C4-P4'],
+    ()=>[],
+    ()=>0
+  )
+];
+
+/* ==== Gamification ==== */
+let XP = 0;
+let identifyStreak = 0;
+let quizBest = 0;
+function levelFromXP(xp){ return Math.floor(xp/100)+1; }
+function medalsList(){ const m=[];
+  if(identifyStreak>=5) m.push('Kombájn – 5 helyes egymás után');
+  if(quizBest>=90) m.push('Sasszem – 90%+ a kvízben');
+  if(XP>=300) m.push('Maraton – 300 XP');
+  return m; }
+
+/* ==== State ==== */
+let mode = 'explore';
+let current = CASES[0];
+let showAns = true;
+let playing = true;
+let speed = 1.0;
+let tExplore = 0;
+let marks = []; // quiz clicks
+let diffFilter = 'beginner';
+let idCurrent = CASES[0];
+
+/* ==== DOM ==== */
+const xpEl = document.getElementById('xp');
+const lvlEl = document.getElementById('lvl');
+const medalsEl = document.getElementById('medals');
+function refreshMeta(){
+  xpEl.textContent = String(XP);
+  lvlEl.textContent = String(levelFromXP(XP));
+  medalsEl.innerHTML='';
+  const m = medalsList();
+  if(!m.length){ medalsEl.innerHTML = '<li>Még nincs – gyűjts kihívásokat!</li>'; }
+  else m.forEach(x=>{ const li=document.createElement('li'); li.textContent=x; medalsEl.appendChild(li); });
+}
+refreshMeta();
+
+/* ==== Tabs ==== */
+const exploreTab = document.getElementById('explore');
+const identifyTab = document.getElementById('identify');
+const quizTab = document.getElementById('quiz');
+function setTab(tab){
+  mode = tab;
+  document.getElementById('tabExplore').className = tab==='explore'?'primary':'ghost';
+  document.getElementById('tabIdentify').className = tab==='identify'?'primary':'ghost';
+  document.getElementById('tabQuiz').className = tab==='quiz'?'primary':'ghost';
+  exploreTab.classList.toggle('hidden', tab!=='explore');
+  identifyTab.classList.toggle('hidden', tab!=='identify');
+  quizTab.classList.toggle('hidden', tab!=='quiz');
+}
+window.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('tabExplore').onclick=()=>setTab('explore');
+  document.getElementById('tabIdentify').onclick=()=>setTab('identify');
+  document.getElementById('tabQuiz').onclick=()=>setTab('quiz');
+});
+
+/* ==== Explore ==== */
+const caseSel = document.getElementById('caseSel');
+CASES.forEach(c=>{ const o=document.createElement('option'); o.value=c.id; o.textContent=c.title; caseSel.appendChild(o); });
+caseSel.onchange=()=>{ current = CASES.find(c=>c.id===caseSel.value); syncExplore(); };
+const toggleAns = document.getElementById('toggleAns');
+const ansLbl = document.getElementById('ansLbl');
+toggleAns.onclick=()=>{ showAns=!showAns; ansLbl.textContent=showAns?'be':'ki'; };
+const playBtn = document.getElementById('playBtn');
+playBtn.onclick=()=>{ playing=!playing; playBtn.textContent= playing?'⏯️ Pause':'▶️ Play'; };
+const spd = document.getElementById('speed'); const spdLbl = document.getElementById('spdLbl'); spd.oninput=()=>{ speed=parseFloat(spd.value); spdLbl.textContent=speed.toFixed(1)+'×'; };
+const meta = document.getElementById('meta');
+const expDesc = document.getElementById('desc');
+const expExplain = document.getElementById('explain');
+const tipsUl = document.getElementById('tips');
+function syncExplore(){
+  meta.textContent = 'Montázs: '+current.montage+'  •  Nehézség: '+current.diff+'  •  Címke: '+current.label;
+  expDesc.textContent = current.desc;
+  expExplain.textContent = current.explain;
+  tipsUl.innerHTML=''; current.tips.forEach(t=>{ const li=document.createElement('li'); li.textContent=t; tipsUl.appendChild(li); });
+  caseSel.value = current.id;
+}
+syncExplore();
+
+/* ==== Identify ==== */
+const difficulty = document.getElementById('difficulty');
+const newIdentify = document.getElementById('newIdentify');
+const idfMeta = document.getElementById('idfMeta');
+const guess = document.getElementById('guess');
+const checkBtn = document.getElementById('check');
+const fb = document.getElementById('fb');
+difficulty.onchange=()=>{ diffFilter = difficulty.value; };
+newIdentify.onclick=()=>{ idRandomCase(); };
+checkBtn.onclick=()=>{ handleIdentify(); };
+function filteredCases(){
+  if(diffFilter==='all') return CASES;
+  return CASES.filter(c=>c.diff===diffFilter);
+}
+function idRandomCase(){
+  const arr = filteredCases();
+  idCurrent = arr[Math.floor(Math.random()*arr.length)];
+  idfMeta.textContent = 'Nehézség: '+idCurrent.diff+'  •  Montázs: '+idCurrent.montage;
+  guess.value=''; fb.className='kudos hidden'; fb.textContent='';
+}
+idRandomCase();
+function handleIdentify(){
+  const g = guess.value.trim().toLowerCase();
+  if(!g) return;
+  const ok = g === idCurrent.label.toLowerCase();
+  fb.classList.remove('hidden'); fb.classList.add(ok?'ok':'no');
+  fb.textContent = ok ? 'Helyes! +20 XP' : 'Nem ez. +2 XP a próbáért. (Megoldás: ' + idCurrent.label + ')';
+  awardXP(ok?20:2);
+  if(ok){ identifyStreak++; setTimeout(()=>{ idRandomCase(); refreshMeta(); }, 900); }
+  else { identifyStreak=0; refreshMeta(); }
+}
+
+/* ==== Quiz ==== */
+const caseSelQ = document.getElementById('caseSelQ');
+CASES.forEach(c=>{ const o=document.createElement('option'); o.value=c.id; o.textContent=c.title; caseSelQ.appendChild(o); });
+let qCurrent = CASES[0];
+let qShowAnswer = false;
+caseSelQ.onchange=()=>{ qCurrent = CASES.find(c=>c.id===caseSelQ.value); marks=[]; qShowAnswer=false; syncQuizMeta(); };
+const resetQuiz = document.getElementById('resetQuiz');
+const showSolution = document.getElementById('showSolution');
+resetQuiz.onclick=()=>{ marks=[]; qShowAnswer=false; syncQuizMeta(); };
+showSolution.onclick=()=>{ qShowAnswer=true; const pct=quizPct(); awardXP( pct>=80 ? 40 : 15 ); quizBest = Math.max(quizBest, pct); document.getElementById('best').textContent=String(quizBest); refreshMeta(); };
+const hitsEl = document.getElementById('hits');
+const totalEl = document.getElementById('total');
+const pctEl = document.getElementById('pct');
+const barEl = document.getElementById('bar');
+const eeg = document.getElementById('eeg');
+const eeg2 = document.getElementById('eeg2');
+const eeg3 = document.getElementById('eeg3');
+const ctx = eeg.getContext('2d');
+const ctx2 = eeg2.getContext('2d');
+const ctx3 = eeg3.getContext('2d');
+eeg3.addEventListener('click',(e)=>{
+  if(mode!=='quiz') return;
+  const r=eeg3.getBoundingClientRect();
+  const x=(e.clientX - r.left)*devicePixelRatio;
+  const y=(e.clientY - r.top)*devicePixelRatio;
+  marks.push({x,y});
+  syncQuizMeta();
+});
+function quizHits(){
+  const dx = 18*devicePixelRatio;
+  const xScale = (eeg3.width / qCurrent.sampleRate);
+  let correct=0;
+  qCurrent.channels.forEach(ch=> ch.spikes.forEach(sx=>{
+    const sxpx = sx*xScale;
+    const ok = marks.some(m=> Math.abs(m.x - sxpx) < dx );
+    if(ok) correct++;
+  }));
+  return correct;
+}
+function quizPct(){
+  const total = qCurrent.channels.reduce((a,ch)=>a+(ch.spikes?.length||0),0);
+  const hits = quizHits();
+  return total? Math.round(hits/total*100):0;
+}
+function syncQuizMeta(){
+  totalEl.textContent = String(qCurrent.channels.reduce((a,ch)=>a+(ch.spikes?.length||0),0));
+  const pct = quizPct();
+  pctEl.textContent = pct+'%'; barEl.style.width = pct+'%';
+  hitsEl.textContent = String(quizHits());
+  caseSelQ.value = qCurrent.id;
+}
+
+/* ==== Drawing ==== */
+function fitCanvas(c){
+  const w = c.clientWidth * devicePixelRatio;
+  const h = c.clientHeight * devicePixelRatio;
+  if(c.width!==w||c.height!==h){ c.width=w; c.height=h; }
+}
+function toXY(c, i, yVal, idx, chCount, sampleRate){
+  const xScale = c.width / sampleRate;
+  const chGap = (c.height - 40) / chCount;
+  const yBase = 20 + idx*chGap + chGap/2;
+  const yScale = 12 * devicePixelRatio;
+  const x = i * xScale;
+  const y = yBase - yVal * yScale;
+  return {x,y,yBase,chGap,xScale};
+}
+function drawExplore(){
+  fitCanvas(eeg);
+  if(playing){ tExplore = (tExplore + 0.06 * speed) % current.sampleRate; }
+  const off = Math.floor(tExplore);
+  ctx.fillStyle='#0b0f1a'; ctx.fillRect(0,0,eeg.width,eeg.height);
+  ctx.strokeStyle='#142038'; ctx.lineWidth=1;
+  for(let x=0;x<eeg.width;x+=50*devicePixelRatio){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,eeg.height); ctx.stroke(); }
+  for(let y=0;y<eeg.height;y+=50*devicePixelRatio){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(eeg.width,y); ctx.stroke(); }
+  ctx.lineWidth=2;
+  current.channels.forEach((ch, idx)=>{
+    const rotated = ch.data.slice(off).concat(ch.data.slice(0,off));
+    ctx.strokeStyle='#dbe5ff'; ctx.beginPath();
+    rotated.forEach((v,i)=>{ const {x,y}=toXY(eeg,i,v,idx,current.channels.length,current.sampleRate); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
+    ctx.stroke();
+    const {yBase,chGap} = toXY(eeg,0,0,idx,current.channels.length,current.sampleRate);
+    ctx.fillStyle='#93a3c8'; ctx.font=(12*devicePixelRatio)+'px system-ui'; ctx.fillText(ch.name, 10*devicePixelRatio, yBase - chGap/2 + 14*devicePixelRatio);
+    if(showAns){ ctx.strokeStyle='#ff4d4d'; ctx.lineWidth=3; ch.spikes.forEach(sx=>{ const x=sx*(eeg.width/current.sampleRate); const y=yBase - rotated[sx]*(12*devicePixelRatio); ctx.beginPath(); ctx.arc(x,y,14*devicePixelRatio,0,Math.PI*2); ctx.stroke(); }); }
+  });
+  requestAnimationFrame(drawExplore);
+}
+requestAnimationFrame(drawExplore);
+
+function drawIdentify(){
+  fitCanvas(eeg2);
+  const off = Math.floor((performance.now()*0.06*speed)%idCurrent.sampleRate);
+  ctx2.fillStyle='#0b0f1a'; ctx2.fillRect(0,0,eeg2.width,eeg2.height);
+  ctx2.strokeStyle='#142038'; ctx2.lineWidth=1;
+  for(let x=0;x<eeg2.width;x+=50*devicePixelRatio){ ctx2.beginPath(); ctx2.moveTo(x,0); ctx2.lineTo(x,eeg2.height); ctx2.stroke(); }
+  for(let y=0;y<eeg2.height;y+=50*devicePixelRatio){ ctx2.beginPath(); ctx2.moveTo(0,y); ctx2.lineTo(eeg2.width,y); ctx2.stroke(); }
+  ctx2.lineWidth=2;
+  idCurrent.channels.forEach((ch, idx)=>{
+    const rotated = ch.data.slice(off).concat(ch.data.slice(0,off));
+    ctx2.strokeStyle='#dbe5ff'; ctx2.beginPath();
+    rotated.forEach((v,i)=>{ const {x,y}=toXY(eeg2,i,v,idx,idCurrent.channels.length,idCurrent.sampleRate); if(i===0) ctx2.moveTo(x,y); else ctx2.lineTo(x,y); });
+    ctx2.stroke();
+    const {yBase,chGap} = toXY(eeg2,0,0,idx,idCurrent.channels.length,idCurrent.sampleRate);
+    ctx2.fillStyle='#93a3c8'; ctx2.font=(12*devicePixelRatio)+'px system-ui'; ctx2.fillText(ch.name, 10*devicePixelRatio, yBase - chGap/2 + 14*devicePixelRatio);
+  });
+  requestAnimationFrame(drawIdentify);
+}
+requestAnimationFrame(drawIdentify);
+
+function drawQuiz(){
+  fitCanvas(eeg3);
+  const off = Math.floor((performance.now()*0.06*speed)%qCurrent.sampleRate);
+  ctx3.fillStyle='#0b0f1a'; ctx3.fillRect(0,0,eeg3.width,eeg3.height);
+  ctx3.strokeStyle='#142038'; ctx3.lineWidth=1;
+  for(let x=0;x<eeg3.width;x+=50*devicePixelRatio){ ctx3.beginPath(); ctx3.moveTo(x,0); ctx3.lineTo(x,eeg3.height); ctx3.stroke(); }
+  for(let y=0;y<eeg3.height;y+=50*devicePixelRatio){ ctx3.beginPath(); ctx3.moveTo(0,y); ctx3.lineTo(eeg3.width,y); ctx3.stroke(); }
+  ctx3.lineWidth=2;
+  qCurrent.channels.forEach((ch, idx)=>{
+    const rotated = ch.data.slice(off).concat(ch.data.slice(0,off));
+    ctx3.strokeStyle='#dbe5ff'; ctx3.beginPath();
+    rotated.forEach((v,i)=>{ const {x,y}=toXY(eeg3,i,v,idx,qCurrent.channels.length,qCurrent.sampleRate); if(i===0) ctx3.moveTo(x,y); else ctx3.lineTo(x,y); });
+    ctx3.stroke();
+    const {yBase,chGap} = toXY(eeg3,0,0,idx,qCurrent.channels.length,qCurrent.sampleRate);
+    ctx3.fillStyle='#93a3c8'; ctx3.font=(12*devicePixelRatio)+'px system-ui'; ctx3.fillText(ch.name, 10*devicePixelRatio, yBase - chGap/2 + 14*devicePixelRatio);
+    if(qShowAnswer){ ctx3.strokeStyle='#ff4d4d'; ctx3.lineWidth=3; ch.spikes.forEach(sx=>{ const x=sx*(eeg3.width/qCurrent.sampleRate); const y=yBase - rotated[sx]*(12*devicePixelRatio); ctx3.beginPath(); ctx3.arc(x,y,14*devicePixelRatio,0,Math.PI*2); ctx3.stroke(); }); }
+  });
+  ctx3.strokeStyle='#60a5fa'; ctx3.lineWidth=3; marks.forEach(m=>{ ctx3.beginPath(); ctx3.arc(m.x,m.y,12*devicePixelRatio,0,Math.PI*2); ctx3.stroke(); });
+  const pct = quizPct(); const hits = quizHits();
+  hitsEl.textContent = String(hits); pctEl.textContent = pct+'%'; barEl.style.width = pct+'%';
+  requestAnimationFrame(drawQuiz);
+}
+requestAnimationFrame(drawQuiz);
+
+/* Helpers */
+function awardXP(n){ XP+=n; refreshMeta(); }
+
+/* Keyboard helpers */
+window.addEventListener('keydown', (e)=>{
+  if(e.key===' '){ playing=!playing; playBtn.textContent= playing?'⏯️ Pause':'▶️ Play'; e.preventDefault(); }
+  if(e.key==='ArrowRight'){ speed=Math.min(2, speed+0.1); document.getElementById('speed').value=String(speed); spdLbl.textContent=speed.toFixed(1)+'×'; }
+  if(e.key==='ArrowLeft'){ speed=Math.max(0.5, speed-0.1); document.getElementById('speed').value=String(speed); spdLbl.textContent=speed.toFixed(1)+'×'; }
+});
+</script>
+</body>
+</html>
